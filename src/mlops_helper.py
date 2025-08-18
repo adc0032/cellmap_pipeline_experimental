@@ -1,6 +1,31 @@
 import mlflow
 import os
 
+def get_run_ids(experiment_name):
+    experiment = mlflow.get_experiment_by_name(experiment_name)
+
+    # Get all runs in the experiment
+    runs_df = mlflow.search_runs(experiment_ids=[experiment.experiment_id])
+
+    # Filter to only child runs (those with a parent_run_id)
+    child_runs_df = runs_df[runs_df['tags.mlflow.parentRunId'].notnull()]
+
+    # Get the list of child run_ids
+    child_run_ids = child_runs_df['run_id'].tolist()
+    return child_run_ids
+
+def get_run_path(experiment_name, run_id):
+    # Get the experiment info (to find the artifact location)
+    experiment = mlflow.get_experiment_by_name(experiment_name)
+
+    # artifact_location might look like: 'file:///path/to/mlruns/12345'
+    # Convert file URI to local path (only if it's a local file store)
+    if artifact_location.startswith("file://"):
+        artifact_location = artifact_location[len("file://"):]
+
+    # The run directory is just artifact_location/<run_id>
+    run_dir = os.path.join(artifact_location, run_id)
+    return run_dir
 
 def get_run_uri(run_id):
     client = mlflow.tracking.MlflowClient()
@@ -22,3 +47,4 @@ def log_artifact_directory(dir_path, ignore_path=None):
             if ignore_path is not None and ignore_path in root:
                 continue
             mlflow.log_artifact(os.path.join(root, file), "rocrate")
+

@@ -1,15 +1,5 @@
 [
     {
-        "hierarchy_run_id": "",
-        "max_fdr": 0.05,
-        "min_jaccard_index": 0.1,
-        "min_comp_size": 4,
-        "corum": "633291aa-6e1d-11ef-a7fd-005056ae23aa",
-        "go_cc": "6722d74d-6e20-11ef-a7fd-005056ae23aa",
-        "hpa": "68c2f2c0-6e20-11ef-a7fd-005056ae23aa"
-    },
-    {
-        "hierarchy_run_id": "",
         "max_fdr": 0.05,
         "min_jaccard_index": 0.1,
         "min_comp_size": 4,

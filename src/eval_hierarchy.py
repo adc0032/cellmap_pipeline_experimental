@@ -2,7 +2,7 @@ import os
 import json
 
 import mlflow
-from mlops_helper import get_run_uri, log_artifact_directory
+from mlops_helper import get_run_ids, get_run_uri, log_artifact_directory
 
 from cellmaps_hierarchyeval.runner import CellmapshierarchyevalRunner
 from fairops.mlops.autolog import LoggerFactory
@@ -15,24 +15,22 @@ configs_file_path = "./configs/eval_hierarchy_configs.json"
 
 with open (configs_file_path, 'r') as f:
     configs = json.load(f)
-
-for config in configs:
-    for k,v in config.items():
-        if k.endswith("_run_id") and (not v or len(v.strip()) < 1):
-            raise Exception(f"'{k}' needs to be provided")
+config = configs[0]
 
 with mlflow.start_run() as parent_run:
     mlflow.set_tag("pipeline_step", "cellmaps_hierarchyeval_parent")
-    mlflow.log_param("n_trials", len(configs))
 
-    for config in configs:
+    run_ids = get_run_ids("hierarchy")
+    mlflow.log_param("n_trials", len(run_ids))
+
+    for run_id in run_ids:
         with mlflow.start_run(nested=True) as child_run:
-            hiergen_dir = f"data/hierarchy/generator/{config['hierarchy_run_id']}"
-            config["hierarchy_run_uri"] = get_run_uri(config['hierarchy_run_id'])
+            hiergen_dir = f"data/hierarchy/generator/{run_id}"
+            hierarchy_run_uri = get_run_uri(run_id)
 
             mlflow.set_tag("pipeline_step", "cellmaps_hierarchyeval")
-            mlflow.log_param("hierarchy_run_id", config["hierarchy_run_id"])
-            mlflow.log_param("hierarchy_run_uri", config["hierarchy_run_uri"])
+            mlflow.log_param("hierarchy_run_id", run_id)
+            mlflow.log_param("hierarchy_run_uri", hierarchy_run_uri)
 
             hiereval_dir = f"data/hierarchy/eval/{child_run.info.run_id}"
             

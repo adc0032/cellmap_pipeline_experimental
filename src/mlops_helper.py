@@ -1,5 +1,6 @@
 import mlflow
 import os
+import json
 
 def get_run_ids(experiment_name):
     experiment = mlflow.get_experiment_by_name(experiment_name)
@@ -14,11 +15,27 @@ def get_run_ids(experiment_name):
     child_run_ids = child_runs_df['run_id'].tolist()
     return child_run_ids
 
+def get_run_info(experiment_name, run_id):
+    # Get the MLflow metadata path for the run.
+    run_path = get_run_path(experiment_name, run_id)
+    run_results_path = f"{run_path}/artifacts/fairops/trial_results.json"
+    
+    # Load the run results metadata.
+    with open (run_results_path, 'r') as f:
+        run_results = json.load(f)
+
+    # Transform the run parameters into a dictionary for ease of use.
+    run_params = {p["key"]: p["value"] for p in run_results["params"]}
+
+    return run_results, run_params
+
 def get_run_path(experiment_name, run_id):
     # Get the experiment info (to find the artifact location)
     experiment = mlflow.get_experiment_by_name(experiment_name)
 
     # artifact_location might look like: 'file:///path/to/mlruns/12345'
+    artifact_location = experiment.artifact_location
+
     # Convert file URI to local path (only if it's a local file store)
     if artifact_location.startswith("file://"):
         artifact_location = artifact_location[len("file://"):]

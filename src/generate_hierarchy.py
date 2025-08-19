@@ -1,8 +1,10 @@
 import os
 import json
+import itertools
+
 
 import mlflow
-from mlops_helper import get_run_uri, log_artifact_directory
+from mlops_helper import get_run_ids, get_run_uri, log_artifact_directory
 
 from cellmaps_generate_hierarchy.hcx import HCXFromCDAPSCXHierarchy
 from cellmaps_generate_hierarchy.hierarchy import CDAPSHiDeFHierarchyGenerator
@@ -15,24 +17,60 @@ from fairops.mlops.autolog import LoggerFactory
 mlflow.set_experiment("hierarchy")
 ml_logger = LoggerFactory.get_logger("mlflow")
 
-configs_file_path = "./configs/generate_hierarchy_configs.json"
+# Define lists of possible values for each key
+algorithms = ["leiden", "louvain"]
+ks = [10]
+maxres = [80]
+containment_thresholds = [0.75, 0.8]
+jaccard_thresholds = [0.8, 0.9]
+min_diffs = [1]
+min_system_sizes = [4]
+ppi_cutoffs = [[0.001, 0.002, 0.003], [0.01, 0.02]]
+parent_ppi_cutoffs = [0.1]
+bootstrap_edges = [0]
 
-with open (configs_file_path, 'r') as f:
-    configs = json.load(f)
+# Generate Cartesian product of all parameter values
+combinations = itertools.product(
+    algorithms,
+    ks,
+    maxres,
+    containment_thresholds,
+    jaccard_thresholds,
+    min_diffs,
+    min_system_sizes,
+    ppi_cutoffs,
+    parent_ppi_cutoffs,
+    bootstrap_edges
+)
 
-for config in configs:
-    for k,v in config.items():
-        if k.endswith("_run_id") and (not v or len(v.strip()) < 1):
-            raise Exception(f"'{k}' needs to be provided")
+# Build list of dictionaries
+configs = [
+    {
+        "algorithm": a,
+        "k": k,
+        "maxres": m,
+        "containment_threshold": ct,
+        "jaccard_threshold": jt,
+        "min_diff": md,
+        "min_system_size": ms,
+        "ppi_cutoffs": pc,
+        "parent_ppi_cutoff": ppc,
+        "bootstrap_edges": be
+    }
+    for (a, k, m, ct, jt, md, ms, pc, ppc, be) in combinations
+]
+
+run_ids = get_run_ids("coembedding")
 
 with mlflow.start_run() as parent_run:
     mlflow.set_tag("pipeline_step", "cellmaps_generate_hierarchy_parent")
-    mlflow.log_param("n_trials", len(configs))
+    mlflow.log_param("n_trials", len(configs) * len(run_ids))
 
-    for config in configs:
+    for run_id, config in itertools.product(run_ids, configs):
         with mlflow.start_run(nested=True) as child_run:
-            coembed_dir = f"data/embedding/coembed/{config['coembed_run_id']}"
-            config["coembed_run_uri"] = get_run_uri(config['coembed_run_id'])
+            coembed_dir = f"data/embedding/coembed/{run_id}"
+            config["coembed_run_id"] = run_id
+            config["coembed_run_uri"] = get_run_uri(run_id)
             
             mlflow.set_tag("pipeline_step", "cellmaps_generate_hierarchy")
             mlflow.log_params(config)

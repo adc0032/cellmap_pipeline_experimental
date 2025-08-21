@@ -18,14 +18,14 @@ mlflow.set_experiment("hierarchy")
 ml_logger = LoggerFactory.get_logger("mlflow")
 
 # Define lists of possible values for each key
-algorithms = ["leiden", "louvain"]
+algorithms = ["leiden", "louvain", "walktrap"]
 ks = [10]
 maxres = [80]
-containment_thresholds = [0.75, 0.8]
-jaccard_thresholds = [0.8, 0.9]
+containment_thresholds = [0.8]
+jaccard_thresholds = [0.8, 0.85, 0.9, 0.95]
 min_diffs = [1]
-min_system_sizes = [4]
-ppi_cutoffs = [[0.001, 0.002, 0.003], [0.01, 0.02]]
+min_system_sizes = [2, 3, 4]
+ppi_cutoffs = [[0.001, 0.002, 0.003], [0.004, 0.005, 0.006]]
 parent_ppi_cutoffs = [0.1]
 bootstrap_edges = [0]
 

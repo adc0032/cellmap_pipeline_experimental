@@ -373,7 +373,7 @@ def generate_report(data: pd.DataFrame, varying_params: List[str], available_met
             best_configs = get_best_configs(data, metric, 3)
             for i, (idx, row) in enumerate(best_configs.iterrows()):
                 f.write(f"  {i+1}. {metric_label}: {row[metric]:.4f}\n")
-                for param in PARAMETER_COLS:
+                for param in PARAM_COLS:
                     if param in row:
                         f.write(f"     {param}: {row[param]}\n")
         

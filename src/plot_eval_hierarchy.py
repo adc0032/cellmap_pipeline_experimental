@@ -361,8 +361,8 @@ def generate_report(data: pd.DataFrame, varying_params: List[str], available_met
             if metric in stats_results and 'correlations' in stats_results[metric]:
                 f.write(f"  Parameter Correlations (Bonferroni corrected):\n")
                 for corr in stats_results[metric]['correlations']:
-                    sig = '*' if corr['corrected_p'] < 0.05 else ''
-                    f.write(f"    {corr['parameter']}: r={corr['correlation']:.3f}, p={corr['corrected_p']:.4f}{sig}\n")
+                    sig = '*' if corr['p_adjusted'] < 0.05 else ''
+                    f.write(f"    {corr['parameter']}: r={corr['correlation']:.3f}, p={corr['p_adjusted']:.4f}{sig}\n")
         
         # Best configurations for each metric
         f.write(f"\nTop 3 Configurations by Metric:\n")
@@ -432,7 +432,7 @@ def main():
             print(f"  Algorithm test: {test['test']} p={test['p_value']:.4f}")
         
         if metric in stats_results and 'correlations' in stats_results[metric]:
-            sig_corrs = [c for c in stats_results[metric]['correlations'] if c['corrected_p'] < 0.05]
+            sig_corrs = [c for c in stats_results[metric]['correlations'] if c['p_adjusted'] < 0.05]
             if sig_corrs:
                 print(f"  Significant correlations:")
                 for corr in sig_corrs:

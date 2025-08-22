@@ -316,59 +316,77 @@ def create_performance_summary(data: pd.DataFrame, varying_params: List[str], av
     
     return fig
 
-def get_best_configs(data: pd.DataFrame, n: int = 5) -> pd.DataFrame:
-    """Get top N configurations."""
-    return data.nlargest(n, 'avg_performance')[
-        PARAM_COLS + METRICS + ['avg_performance']
+def get_best_configs(data: pd.DataFrame, available_metrics: List[str], n: int = 5) -> pd.DataFrame:
+    """Get top N configurations for input metrics."""
+    return data.nlargest(n, metric)[
+        PARAM_COLS + available_metrics
     ]
 
-def generate_report(data: pd.DataFrame, varying_params: List[str], stats_results: dict, output_dir: str):
-    """Generate comprehensive report with statistics."""
+def generate_report(data: pd.DataFrame, varying_params: List[str], available_metrics: List[str], stats_results: dict, output_dir: str):
+    """Generate comprehensive report with separate metric analysis."""
     report_path = os.path.join(output_dir, 'analysis_report.txt')
     
     with open(report_path, 'w') as f:
-        f.write("CM4AI Parameter Analysis Report\n")
-        f.write("=" * 50 + "\n\n")
+        f.write("CM4AI Parameter Analysis Report - Separate Metrics\n")
+        f.write("=" * 60 + "\n\n")
         
         # Data summary
         f.write(f"Dataset: {len(data)} configurations analyzed\n")
-        f.write(f"Metrics: {[col for col in METRICS if col in data.columns]}\n")
+        f.write(f"Metrics analyzed separately: {len(available_metrics)}\n")
+        for metric in available_metrics:
+            metric_label = METRIC_LABELS.get(metric, metric)
+            f.write(f"  - {metric_label}\n")
         f.write(f"Varying parameters: {varying_params}\n\n")
         
-        # Performance summary
-        f.write("Performance Summary:\n")
-        f.write(f"Mean: {data['avg_performance'].mean():.4f}\n")
-        f.write(f"Std:  {data['avg_performance'].std():.4f}\n")
-        f.write(f"Min:  {data['avg_performance'].min():.4f}\n")
-        f.write(f"Max:  {data['avg_performance'].max():.4f}\n\n")
+        # Performance summary for each metric
+        for metric in available_metrics:
+            metric_label = METRIC_LABELS.get(metric, metric)
+            f.write(f"{metric_label} Performance:\n")
+            f.write(f"  Mean: {data[metric].mean():.4f}\n")
+            f.write(f"  Std:  {data[metric].std():.4f}\n")
+            f.write(f"  Min:  {data[metric].min():.4f}\n")
+            f.write(f"  Max:  {data[metric].max():.4f}\n\n")
         
-        # Statistical results
-        f.write("Statistical Analysis:\n")
-        if 'algorithm_test' in stats_results:
-            test = stats_results['algorithm_test']
-            f.write(f"Algorithm comparison ({test['test']}): p={test['p_value']:.4f}\n")
+        # Statistical results for each metric
+        f.write("Statistical Analysis by Metric:\n")
+        f.write("-" * 40 + "\n")
+        for metric in available_metrics:
+            metric_label = METRIC_LABELS.get(metric, metric)
+            f.write(f"\n{metric_label}:\n")
+            
+            if metric in stats_results and 'algorithm_test' in stats_results[metric]:
+                test = stats_results[metric]['algorithm_test']
+                f.write(f"  Algorithm comparison ({test['test']}): p={test['p_value']:.4f}\n")
+            
+            if metric in stats_results and 'correlations' in stats_results[metric]:
+                f.write(f"  Parameter Correlations (Bonferroni corrected):\n")
+                for corr in stats_results[metric]['correlations']:
+                    sig = '*' if corr['corrected_p'] < 0.05 else ''
+                    f.write(f"    {corr['parameter']}: r={corr['correlation']:.3f}, p={corr['corrected_p']:.4f}{sig}\n")
         
-        if 'correlations' in stats_results:
-            f.write("\nParameter Correlations (with Bonferroni correction):\n")
-            for corr in stats_results['correlations']:
-                sig = '*' if corr['corrected_p'] < 0.05 else ''
-                f.write(f"{corr['parameter']}: r={corr['correlation']:.3f}, p={corr['corrected_p']:.4f}{sig}\n")
+        # Best configurations for each metric
+        f.write(f"\nTop 3 Configurations by Metric:\n")
+        f.write("-" * 40 + "\n")
+        for metric in available_metrics:
+            metric_label = METRIC_LABELS.get(metric, metric)
+            f.write(f"\n{metric_label}:\n")
+            best_configs = get_best_configs(data, available_metrics, metric, 3)
+            for i, (idx, row) in enumerate(best_configs.iterrows()):
+                f.write(f"  {i+1}. {metric_label}: {row[metric]:.4f}\n")
+                for param in PARAMETER_COLS:
+                    if param in row:
+                        f.write(f"     {param}: {row[param]}\n")
         
-        # Best configurations
-        f.write("\nTop 5 Configurations:\n")
-        best_configs = get_best_configs(data, 5)
-        for i, (idx, row) in enumerate(best_configs.iterrows()):
-            f.write(f"\n{i+1}. Performance: {row['avg_performance']:.4f}\n")
-            for param in PARAM_COLS:
-                if param in row:
-                    f.write(f"   {param}: {row[param]}\n")
-        
-        # Algorithm comparison
+        # Algorithm comparison for each metric
         if ALGORITHM_COL in data.columns:
-            f.write("\nAlgorithm Performance:\n")
-            algo_stats = data.groupby(ALGORITHM_COL)['avg_performance'].agg(['mean', 'std', 'count'])
-            for alg, stats in algo_stats.iterrows():
-                f.write(f"{alg}: {stats['mean']:.4f} ± {stats['std']:.4f} (n={stats['count']})\n")
+            f.write(f"\nAlgorithm Performance by Metric:\n")
+            f.write("-" * 40 + "\n")
+            for metric in available_metrics:
+                metric_label = METRIC_LABELS.get(metric, metric)
+                f.write(f"\n{metric_label}:\n")
+                algo_stats = data.groupby(ALGORITHM_COL)[metric].agg(['mean', 'std', 'count'])
+                for alg, stats in algo_stats.iterrows():
+                    f.write(f"  {alg}: {stats['mean']:.4f} ± {stats['std']:.4f} (n={stats['count']})\n")
     
     print(f"Report saved to: {report_path}")
     return stats_results
@@ -394,7 +412,6 @@ def main():
     create_algorithm_comparison(data, available_metrics, save_path=os.path.join(args.output, 'algorithm_comparison.png'))
     create_parameter_effects(data, varying_params, available_metrics, save_path=os.path.join(args.output, 'parameter_effects.png'))
     
-    # Advanced features
     print("Running statistical analysis...")
     stats_results = stats_analysis(data, varying_params, available_metrics)
     
@@ -420,7 +437,6 @@ def main():
     print(best.to_string(index=False))
     
     print(f"\n Analysis complete! Results saved to: {args.output}")
-    print("Interactive plots saved as .html files")
 
 if __name__ == "__main__":
     main()

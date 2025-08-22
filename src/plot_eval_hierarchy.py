@@ -261,8 +261,14 @@ def create_parameter_effects(data: pd.DataFrame, varying_params: List[str], avai
 
 def create_performance_summary(data: pd.DataFrame, varying_params: List[str], available_metrics: List[str], stats_results: dict, save_path: Optional[str] = None):
     """Create performance summary for each metric separately."""
+    
+    all_jaccard_values = []
+    for metric in available_metrics:
+        all_jaccard_values.extend(data[metric].dropna().tolist())
+    y_max = math.ceil(max(all_jaccard_values) * 10) / 10
+
     n_metrics = len(available_metrics)
-    fig, axes = plt.subplots(2, n_metrics, figsize=(6 * n_metrics, 12))
+    fig, axes = plt.subplots(2, n_metrics, figsize=(6 * n_metrics, 13))
     if n_metrics == 1:
         axes = axes.reshape(-1, 1)
     
@@ -289,7 +295,7 @@ def create_performance_summary(data: pd.DataFrame, varying_params: List[str], av
             metric_label2 = METRIC_LABELS.get(other_metric, other_metric)
             ax.set_xlabel(f'{metric_label1} Jaccard')
             ax.set_ylabel(f'{metric_label2} Jaccard')
-            ax.set_title(f'{metric_label1} vs {metric_label2}')
+            ax.set_title(f'{metric_label1} vs {metric_label2}', fontweight='bold')
             
         # Bottom row: Algorithm comparison
         ax2 = axes[1, i]

@@ -194,7 +194,7 @@ def create_parameter_effects(data: pd.DataFrame, varying_params: List[str], avai
                            marker='o', color='blue', linewidth=2, markersize=6)
             
             if metric_idx == 2:
-                ax.set_xlabel(param.replace('_', ' ').title(), fontweight='bold')
+                ax.set_xlabel(param.replace('_', ' ').title().replace("Ppi", "PPI"), fontweight='bold')
             ax.set_ylim(0, y_max)
             # Y-axis labels
             if param_idx == 0:  # Only leftmost column
@@ -203,7 +203,7 @@ def create_parameter_effects(data: pd.DataFrame, varying_params: List[str], avai
             
             # Title only on top row
             if metric_idx == 0:
-                ax.set_title(f'Effect of {param.replace("_", " ").title()}', fontweight='bold')
+                ax.set_title(f'Effect of {param.replace("_", " ").title().replace("Ppi", "PPI")}', fontweight='bold')
             
             ax.grid(True, alpha=0.3)
             

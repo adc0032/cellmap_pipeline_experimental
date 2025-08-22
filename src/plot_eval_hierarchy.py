@@ -418,7 +418,7 @@ def main():
     perf_plot_path = os.path.join(args.output, 'performance_summary.png')
     create_performance_summary(data, varying_params, available_metrics, stats_results, save_path=perf_plot_path)
     
-    generate_report(data, varying_params, stats_results, args.output)
+    generate_report(data, varying_params, available_metrics, stats_results, args.output)
     
     # Print statistical summaries
     print("\nStatistical Summary by Metric:")

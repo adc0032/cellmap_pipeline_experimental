@@ -126,7 +126,7 @@ def stats_analysis(
                     'statistic': stat,
                     'p_value': p
                     }
-        
+        # pearson correlation for parameters
         numeric_params = [p for p in varying_params 
                           if pd.api.types.is_numeric_dtype(data[p])]
         if numeric_params:
@@ -168,7 +168,7 @@ def create_parameter_effects(data: pd.DataFrame, varying_params: List[str], avai
         axes = [[ax] for ax in axes]
     
     algorithms = data[ALGORITHM_COL].unique() if ALGORITHM_COL in data.columns else [None]
-    
+
     for metric_idx, metric in enumerate(available_metrics):
         for param_idx, param in enumerate(varying_params):
             ax = axes[metric_idx][param_idx]
@@ -239,7 +239,6 @@ def create_performance_summary(data: pd.DataFrame, varying_params: List[str], av
         other_metrics = [m for m in available_metrics if m != metric]
         
         if len(other_metrics) >= 1:
-            # Scatter: current metric vs first other metric
             other_metric = other_metrics[0]
             ax.scatter(data[metric], data[other_metric], alpha=0.6)
             
@@ -374,24 +373,17 @@ def main():
     
     args = parser.parse_args()
     
-    # Load data
     print(f"Loading data from: {args.input}")
     data, varying_params, available_metrics = load_data(args.input)
-    
-    # Create output directory
     os.makedirs(args.output, exist_ok=True)
     
-    # Generate all analyses
     print("Generating visualizations...")
-    
     create_parameter_effects(data, varying_params, available_metrics, save_path=os.path.join(args.output, 'parameter_effects.png'))
     
     print("Running statistical analysis...")
     stats_results = stats_analysis(data, varying_params, available_metrics)
-    
     perf_plot_path = os.path.join(args.output, 'performance_summary.png')
     create_performance_summary(data, varying_params, available_metrics, stats_results, save_path=perf_plot_path)
-    
     generate_report(data, varying_params, available_metrics, stats_results, args.output)
     
     # Print statistical summaries

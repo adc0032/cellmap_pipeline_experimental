@@ -269,18 +269,28 @@ def create_performance_summary(data: pd.DataFrame, varying_params: List[str], av
     for i, metric in enumerate(available_metrics):
         metric_label = METRIC_LABELS.get(metric, metric.replace("_", " ").title())
         
-        # Top row: Performance distribution
-        ax1 = axes[0, i]
-        ax1.hist(data[metric].dropna(), bins=20, alpha=0.7, color='skyblue', edgecolor='black')
-        mean_perf = data[metric].mean()
-        ax1.axvline(mean_perf, color='red', linestyle='--', linewidth=2, 
-                   label=f'Mean: {mean_perf:.3f}')
-        ax1.set_xlabel('Jaccard Index', fontweight='bold')
-        ax1.set_ylabel('Frequency', fontweight='bold')
-        ax1.set_title(f'{metric_label} Distribution', fontweight='bold')
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
+        # Top row: Metric correlations
+        ax = axes[0, i]
+    
+        # Create scatter plot of this metric vs other metrics
+        other_metrics = [m for m in available_metrics if m != metric]
         
+        if len(other_metrics) >= 1:
+            # Scatter: current metric vs first other metric
+            other_metric = other_metrics[0]
+            ax.scatter(data[metric], data[other_metric], alpha=0.6)
+            
+            # Add correlation coefficient
+            r, p = stats.pearsonr(data[metric], data[other_metric])
+            ax.text(0.05, 0.95, f'r = {r:.3f}\np = {p:.3f}', 
+                    transform=ax.transAxes, bbox=dict(boxstyle='round', facecolor='white'))
+            
+            metric_label1 = METRIC_LABELS.get(metric, metric)
+            metric_label2 = METRIC_LABELS.get(other_metric, other_metric)
+            ax.set_xlabel(f'{metric_label1} Jaccard')
+            ax.set_ylabel(f'{metric_label2} Jaccard')
+            ax.set_title(f'{metric_label1} vs {metric_label2}')
+            
         # Bottom row: Algorithm comparison
         ax2 = axes[1, i]
         if ALGORITHM_COL in data.columns:
@@ -308,7 +318,7 @@ def create_performance_summary(data: pd.DataFrame, varying_params: List[str], av
                         transform=ax2.transAxes, va='top', ha='left', 
                         bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
     
-    plt.suptitle('Performance Summary: Separate Metrics', fontsize=16, fontweight='bold')
+    plt.suptitle('Performance Summary', fontsize=16, fontweight='bold')
     plt.tight_layout()
     
     if save_path:

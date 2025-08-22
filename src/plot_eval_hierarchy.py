@@ -93,7 +93,7 @@ def load_data(filepath: str) -> pd.DataFrame:
     
     return data, varying_params, available_metrics
 
-def stats(
+def stats_analysis(
         data: pd.DataFrame, 
         varying_params: List[str],
         available_metrics: List[str]) -> dict:
@@ -396,7 +396,7 @@ def main():
     
     # Advanced features
     print("Running statistical analysis...")
-    stats_results = stats(data, varying_params, available_metrics)
+    stats_results = stats_analysis(data, varying_params, available_metrics)
     
     perf_plot_path = os.path.join(args.output, 'performance_summary.png')
     create_performance_summary(data, varying_params, available_metrics, stats_results, save_path=perf_plot_path)

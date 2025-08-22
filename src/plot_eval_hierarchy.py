@@ -157,10 +157,7 @@ def create_parameter_effects(data: pd.DataFrame, varying_params: List[str], avai
     n_params = len(varying_params)
     n_metrics = len(available_metrics)
     
-    all_jaccard_values = []
-    for metric in available_metrics:
-        all_jaccard_values.extend(data[metric].dropna().tolist())
-    y_max = math.ceil(max(all_jaccard_values) * 10) / 10
+    y_max = np.ceil(data[available_metrics].max().max() * 10) / 10
 
     fig, axes = plt.subplots(n_metrics, n_params, figsize=(6 * n_params, 5 * n_metrics))
     if n_metrics == 1 and n_params == 1:
@@ -224,10 +221,7 @@ def create_parameter_effects(data: pd.DataFrame, varying_params: List[str], avai
 def create_performance_summary(data: pd.DataFrame, varying_params: List[str], available_metrics: List[str], stats_results: dict, save_path: Optional[str] = None):
     """Create performance summary for each metric separately."""
     
-    all_jaccard_values = []
-    for metric in available_metrics:
-        all_jaccard_values.extend(data[metric].dropna().tolist())
-    y_max = math.ceil(max(all_jaccard_values) * 10) / 10
+    y_max = np.ceil(data[available_metrics].max().max() * 10) / 10
 
     n_metrics = len(available_metrics)
     fig, axes = plt.subplots(2, n_metrics, figsize=(6 * n_metrics, 13))

@@ -316,10 +316,10 @@ def create_performance_summary(data: pd.DataFrame, varying_params: List[str], av
     
     return fig
 
-def get_best_configs(data: pd.DataFrame, available_metrics: List[str], n: int = 5) -> pd.DataFrame:
+def get_best_configs(data: pd.DataFrame, metric: str, n: int = 5) -> pd.DataFrame:
     """Get top N configurations for input metrics."""
     return data.nlargest(n, metric)[
-        PARAM_COLS + available_metrics
+        PARAM_COLS + [metric]
     ]
 
 def generate_report(data: pd.DataFrame, varying_params: List[str], available_metrics: List[str], stats_results: dict, output_dir: str):
@@ -444,7 +444,7 @@ def main():
     print("-" * 40)
     for metric in available_metrics:
         metric_label = METRIC_LABELS.get(metric, metric)
-        best = get_best_configs(data, available_metrics, metric, 1)
+        best = get_best_configs(data, metric, 1)
         print(f"\n{metric_label}: {best[metric].iloc[0]:.4f}")
         print(f"  Algorithm: {best[ALGORITHM_COL].iloc[0] if ALGORITHM_COL in best.columns else 'N/A'}")
     

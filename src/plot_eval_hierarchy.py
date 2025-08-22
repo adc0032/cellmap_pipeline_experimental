@@ -383,7 +383,7 @@ def main():
     
     # Load data
     print(f"Loading data from: {args.input}")
-    data, varying_params = load_data(args.input)
+    data, varying_params, available_metrics = load_data(args.input)
     
     # Create output directory
     os.makedirs(args.output, exist_ok=True)
@@ -391,15 +391,15 @@ def main():
     # Generate all analyses
     print("Generating visualizations...")
     
-    create_algorithm_comparison(data, save_path=os.path.join(args.output, 'algorithm_comparison.png'))
-    create_parameter_effects(data, varying_params, save_path=os.path.join(args.output, 'parameter_effects.png'))
+    create_algorithm_comparison(data, available_metrics, save_path=os.path.join(args.output, 'algorithm_comparison.png'))
+    create_parameter_effects(data, varying_params, available_metrics, save_path=os.path.join(args.output, 'parameter_effects.png'))
     
     # Advanced features
     print("Running statistical analysis...")
-    stats_results = stats(data, varying_params)
+    stats_results = stats(data, varying_params, available_metrics)
     
     perf_plot_path = os.path.join(args.output, 'performance_summary.png')
-    create_performance_summary(data, varying_params, stats_results, save_path=perf_plot_path)
+    create_performance_summary(data, varying_params, available_metrics, stats_results, save_path=perf_plot_path)
     
     generate_report(data, varying_params, stats_results, args.output)
     

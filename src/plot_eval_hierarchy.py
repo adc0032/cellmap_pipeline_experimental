@@ -420,23 +420,35 @@ def main():
     
     generate_report(data, varying_params, stats_results, args.output)
     
-    # Print statistical summary
-    if 'algorithm_test' in stats_results:
-        test = stats_results['algorithm_test']
-        print(f"\nAlgorithm comparison: {test['test']} p={test['p_value']:.4f}")
+    # Print statistical summaries
+    print("\nStatistical Summary by Metric:")
+    print("-" * 40)
+    for metric in available_metrics:
+        metric_label = METRIC_LABELS.get(metric, metric)
+        print(f"\n{metric_label}:")
+        
+        if metric in stats_results and 'algorithm_test' in stats_results[metric]:
+            test = stats_results[metric]['algorithm_test']
+            print(f"  Algorithm test: {test['test']} p={test['p_value']:.4f}")
+        
+        if metric in stats_results and 'correlations' in stats_results[metric]:
+            sig_corrs = [c for c in stats_results[metric]['correlations'] if c['corrected_p'] < 0.05]
+            if sig_corrs:
+                print(f"  Significant correlations:")
+                for corr in sig_corrs:
+                    print(f"    {corr['parameter']}: r={corr['correlation']:.3f}")
+
     
-    if 'correlations' in stats_results:
-        print("\nSignificant correlations:")
-        for corr in stats_results['correlations']:
-            if corr['corrected_p'] < 0.05:
-                print(f"  {corr['parameter']}: r={corr['correlation']:.3f}")
+    # Print best configurations
+    print(f"\nBest configuration for each metric:")
+    print("-" * 40)
+    for metric in available_metrics:
+        metric_label = METRIC_LABELS.get(metric, metric)
+        best = get_best_configs(data, available_metrics, metric, 1)
+        print(f"\n{metric_label}: {best[metric].iloc[0]:.4f}")
+        print(f"  Algorithm: {best[ALGORITHM_COL].iloc[0] if ALGORITHM_COL in best.columns else 'N/A'}")
     
-    # Print best configuration
-    print("\nBest configuration:")
-    best = get_best_configs(data, 1)
-    print(best.to_string(index=False))
-    
-    print(f"\n Analysis complete! Results saved to: {args.output}")
+    print(f"\n Analysis complete! Results saved to: {args.output}")
 
 if __name__ == "__main__":
     main()

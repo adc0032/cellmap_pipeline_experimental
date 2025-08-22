@@ -51,7 +51,7 @@ METRIC_LABELS = {
 PARAM_COLS = [
     'coembed_algorithm',
     'hierarchy_k',
-    'hierarchy_maxres	',
+    'hierarchy_maxres',
     'hierarchy_containment_threshold',
     'hierarchy_jaccard_threshold',
     'hierarchy_min_diff',

@@ -148,49 +148,6 @@ def stats_analysis(
         results[metric] = metric_results
     return results
 
-def create_algorithm_comparison(data: pd.DataFrame, available_metrics: List[str], save_path: Optional[str] = None):
-    """Compare algorithms across all metrics separately."""
-    if ALGORITHM_COL not in data.columns:
-        print("No algorithm column found")
-        return None
-    
-    algorithms = data[ALGORITHM_COL].unique()
-    n_metrics = len(available_metrics)
-    
-    fig, axes = plt.subplots(1, n_metrics, figsize=(6 * n_metrics, 6))
-    if n_metrics == 1:
-        axes = [axes]
-    
-    # Individual metrics
-    for i, metric in enumerate(available_metrics):
-        ax = axes[i]
-        
-        # Box plot for each algorithm
-        data_by_alg = [data[data[ALGORITHM_COL] == alg][metric].dropna() 
-                      for alg in algorithms]
-        
-        box_plot = ax.boxplot(data_by_alg, labels=algorithms, patch_artist=True)
-        
-        # Color boxes
-        for patch, alg in zip(box_plot['boxes'], algorithms):
-            patch.set_facecolor(COLORS.get(alg.lower(), 'lightblue'))
-            patch.set_alpha(0.7)
-        
-        # Use nice labels
-        metric_label = METRIC_LABELS.get(metric, metric.replace("_", " ").title())
-        ax.set_title(f'{metric_label}', fontweight='bold')
-        ax.set_ylabel('Jaccard Index')
-        ax.grid(True, alpha=0.3)
-        ax.tick_params(axis='x', rotation=45)
-    
-    plt.suptitle('Algorithm Performance: Separate Metrics', fontsize=16, fontweight='bold')
-    plt.tight_layout()
-    
-    if save_path:
-        plt.savefig(save_path, dpi=DPI, bbox_inches='tight')
-    
-    return fig
-
 def create_parameter_effects(data: pd.DataFrame, varying_params: List[str], available_metrics: List[str], save_path: Optional[str] = None):
     """Analyze parameter effects on each metric separately."""
     if not varying_params:
@@ -200,6 +157,11 @@ def create_parameter_effects(data: pd.DataFrame, varying_params: List[str], avai
     n_params = len(varying_params)
     n_metrics = len(available_metrics)
     
+    all_jaccard_values = []
+    for metric in available_metrics:
+        all_jaccard_values.extend(data[metric].dropna().tolist())
+    y_max = math.ceil(max(all_jaccard_values) * 10) / 10
+
     fig, axes = plt.subplots(n_metrics, n_params, figsize=(6 * n_params, 5 * n_metrics))
     if n_metrics == 1 and n_params == 1:
         axes = [[axes]]
@@ -235,7 +197,7 @@ def create_parameter_effects(data: pd.DataFrame, varying_params: List[str], avai
                            marker='o', color='blue', linewidth=2, markersize=6)
             
             ax.set_xlabel(param.replace('_', ' ').title(), fontweight='bold')
-            
+            ax.set_ylim(0, y_max)
             # Y-axis labels
             if param_idx == 0:  # Only leftmost column
                 metric_label = METRIC_LABELS.get(metric, metric.replace("_", " ").title())
@@ -311,6 +273,7 @@ def create_performance_summary(data: pd.DataFrame, varying_params: List[str], av
             ax2.set_xlabel('Algorithm', fontweight='bold')
             ax2.set_ylabel('Jaccard Index', fontweight='bold')
             ax2.set_title(f'{metric_label} by Algorithm', fontweight='bold')
+            ax2.set_ylim(0, y_max)
             ax2.set_xticks(range(len(algo_stats)))
             ax2.set_xticklabels(algo_stats.index, rotation=45)
             ax2.grid(True, alpha=0.3)
@@ -410,7 +373,7 @@ def generate_report(data: pd.DataFrame, varying_params: List[str], available_met
 
 def main():
     """Main execution function."""
-    parser = argparse.ArgumentParser(description='CM4AI Parameter Analysis')
+    parser = argparse.ArgumentParser(description='CM4AI Hierarchy Parameter Analysis')
     parser.add_argument('--input', '-i', required=True, help='Input CSV file')
     parser.add_argument('--output', '-o', default='./plots/', help='Output directory')
     
@@ -426,7 +389,6 @@ def main():
     # Generate all analyses
     print("Generating visualizations...")
     
-    create_algorithm_comparison(data, available_metrics, save_path=os.path.join(args.output, 'algorithm_comparison.png'))
     create_parameter_effects(data, varying_params, available_metrics, save_path=os.path.join(args.output, 'parameter_effects.png'))
     
     print("Running statistical analysis...")

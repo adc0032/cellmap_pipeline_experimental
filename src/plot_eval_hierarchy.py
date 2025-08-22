@@ -319,7 +319,8 @@ def create_performance_summary(data: pd.DataFrame, varying_params: List[str], av
 def get_best_configs(data: pd.DataFrame, metric: str, n: int = 5) -> pd.DataFrame:
     """Get top N configurations for input metrics."""
     return data.nlargest(n, metric)[
-        PARAM_COLS + [metric]
+        ALGORITHM_COL + PARAM_COLS + metric
+        
     ]
 
 def generate_report(data: pd.DataFrame, varying_params: List[str], available_metrics: List[str], stats_results: dict, output_dir: str):

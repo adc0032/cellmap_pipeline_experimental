@@ -1,0 +1,426 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Aug 21 18:10:51 2025
+
+@author: Amanda D. Clark (clarkad@uab.edu)
+"""
+
+"""
+CM4AI Parameter Testing Visualization
+
+Program for analyzing multi-parameter optimization results 
+from cellmap pipeline.
+
+Usage:
+    python plot_eval_hierarchy.py --input results.csv --output ./plots/
+    
+    where results.csv is output of results from a paramater search space run
+    for generated hierarchies
+    
+"""
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import argparse
+import os
+import re
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional, Any, Union
+from scipy import stats
+from scipy.stats import kruskal, mannwhitneyu
+from statsmodels.stats.multitest import multipletests
+import warnings
+warnings.filterwarnings('ignore')
+
+# expected input col names from csv
+METRICS = [
+    'hierarchy_mean_corum_jaccard',
+    'hierarchy_mean_go_cc_jaccard',
+    'hierarchy_mean_hpa_jaccard'
+    ]
+
+METRIC_LABELS = {
+    'hierarchy_mean_corum_jaccard': 'CORUM complexes',
+    'hierarchy_mean_go_cc_jaccard': 'GO Cellular Components',
+    'hierarchy_mean_hpa_jaccard': 'HPA Subcellular Localization'
+    }
+
+PARAM_COLS = [
+    'coembed_algorithm',
+    'hierarchy_k',
+    'hierarchy_maxres	',
+    'hierarchy_containment_threshold',
+    'hierarchy_jaccard_threshold',
+    'hierarchy_min_diff',
+    'hierarchy_min_system_size',
+    'hierarchy_ppi_cutoffs',
+    'hierarchy_parent_ppi_cutoffs',
+    'hierarchy_bootstrap_edges'
+    ]
+
+ALGORITHM_COL = 'hierarchy_algorithm'
+
+# plot params
+plt.style.use('seaborn-v0_8-darkgrid')
+FIGSIZE = (12,8)
+DPI = 300
+
+COLORS = {
+    'leiden': '#3498db',
+    'lovain': '#e74c3c',
+    'walktrap': '#2ecc71'
+    }
+
+def load_data(filepath: str) -> pd.DataFrame:
+    """Load csv data for hierarchy performance comparison"""
+    data = pd.read_csv(filepath)
+    print(f"Loaded hierarchy evaluation results from {len(data)} trials.")
+    
+    available_metrics = [col for col in METRICS if col in data.columns]
+    if not available_metrics:
+        raise ValueError(f"No metric columns found. Expected: {METRICS}")
+        
+    varying_params = []
+    for param in PARAM_COLS:
+        if param in data.columns and data[param].nunique() > 1:
+            varying_params.append(param)
+            
+    print(f"Found metrics: {available_metrics}")
+    print(f"Tested parameters: {varying_params}")
+    
+    return data, varying_params, available_metrics
+
+def stats(
+        data: pd.DataFrame, 
+        varying_params: List[str],
+        available_metrics: List[str]) -> dict:
+    """Statistical analysis for jaccard metrics"""
+    
+    results = {}
+    
+    for metric in available_metrics:
+        metric_results = {}
+        
+        if ALGORITHM_COL in data.columns:
+            algorithms = data[ALGORITHM_COL].unique()
+            if len(algorithms) > 2:
+                # run Kruskal-Wallis
+                groups = [data[data[ALGORITHM_COL] == alg][metric].dropna()
+                          for alg in algorithms]
+                stat, p = kruskal(*groups)
+                metric_results['algorithm_test'] = {
+                    'test': 'Kruskal-Wallis',
+                    'statistic': stat,
+                    'p_value': p
+                    }
+            elif len(algorithms) == 2:
+                # run Mann-Whitney U
+                g1, g2 = [data[data[ALGORITHM_COL] == alg][metric].dropna()
+                          for alg in algorithms]
+                stat, p = mannwhitneyu(g1, g2, alternative='two-sided')
+                metric_results['algorithm_test'] = {
+                    'test': 'Mann-Whitney U',
+                    'statistic': stat,
+                    'p_value': p
+                    }
+        
+        numeric_params = [p for p in varying_params 
+                          if pd.api.types.is_numeric_dtype(data[p])]
+        if numeric_params:
+            corr_results = []
+            for param in numeric_params:
+                r, p = stats.pearsonr(data[param], data[metric])
+                corr_results.append(
+                    {
+                        'parameter': param, 
+                        'correlation': r,
+                        'p_value': p
+                        }
+                    )
+            p_vals = [r['p_value'] for r in corr_results]
+            p_adjust = multipletests(p_vals, method='bonferroni')[1]
+            for i, result in enumerate(corr_results):
+                result['p_adjusted'] = p_adjust[i]
+            metric_results['correlations'] = corr_results
+        results[metric] = metric_results
+    return results
+
+def create_algorithm_comparison(data: pd.DataFrame, available_metrics: List[str], save_path: Optional[str] = None):
+    """Compare algorithms across all metrics separately."""
+    if ALGORITHM_COL not in data.columns:
+        print("No algorithm column found")
+        return None
+    
+    algorithms = data[ALGORITHM_COL].unique()
+    n_metrics = len(available_metrics)
+    
+    fig, axes = plt.subplots(1, n_metrics, figsize=(6 * n_metrics, 6))
+    if n_metrics == 1:
+        axes = [axes]
+    
+    # Individual metrics
+    for i, metric in enumerate(available_metrics):
+        ax = axes[i]
+        
+        # Box plot for each algorithm
+        data_by_alg = [data[data[ALGORITHM_COL] == alg][metric].dropna() 
+                      for alg in algorithms]
+        
+        box_plot = ax.boxplot(data_by_alg, labels=algorithms, patch_artist=True)
+        
+        # Color boxes
+        for patch, alg in zip(box_plot['boxes'], algorithms):
+            patch.set_facecolor(COLORS.get(alg.lower(), 'lightblue'))
+            patch.set_alpha(0.7)
+        
+        # Use nice labels
+        metric_label = METRIC_LABELS.get(metric, metric.replace("_", " ").title())
+        ax.set_title(f'{metric_label}', fontweight='bold')
+        ax.set_ylabel('Jaccard Index')
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(axis='x', rotation=45)
+    
+    plt.suptitle('Algorithm Performance: Separate Metrics', fontsize=16, fontweight='bold')
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=DPI, bbox_inches='tight')
+    
+    return fig
+
+def create_parameter_effects(data: pd.DataFrame, varying_params: List[str], available_metrics: List[str], save_path: Optional[str] = None):
+    """Analyze parameter effects on each metric separately."""
+    if not varying_params:
+        print("No varying parameters found")
+        return None
+    
+    n_params = len(varying_params)
+    n_metrics = len(available_metrics)
+    
+    fig, axes = plt.subplots(n_metrics, n_params, figsize=(6 * n_params, 5 * n_metrics))
+    if n_metrics == 1 and n_params == 1:
+        axes = [[axes]]
+    elif n_metrics == 1:
+        axes = [axes]
+    elif n_params == 1:
+        axes = [[ax] for ax in axes]
+    
+    algorithms = data[ALGORITHM_COL].unique() if ALGORITHM_COL in data.columns else [None]
+    
+    for metric_idx, metric in enumerate(available_metrics):
+        for param_idx, param in enumerate(varying_params):
+            ax = axes[metric_idx][param_idx]
+            
+            if len(algorithms) > 1 and algorithms[0] is not None:
+                # Plot by algorithm
+                for alg in algorithms:
+                    subset = data[data[ALGORITHM_COL] == alg]
+                    if len(subset) > 0:
+                        param_stats = subset.groupby(param)[metric].agg(['mean', 'std'])
+                        color = COLORS.get(alg.lower(), 'blue')
+                        ax.errorbar(param_stats.index, param_stats['mean'], 
+                                   yerr=param_stats['std'], 
+                                   marker='o', label=alg, color=color,
+                                   linewidth=2, markersize=6)
+                if metric_idx == 0:  # Only show legend on top row
+                    ax.legend()
+            else:
+                # Single line
+                param_stats = data.groupby(param)[metric].agg(['mean', 'std'])
+                ax.errorbar(param_stats.index, param_stats['mean'], 
+                           yerr=param_stats['std'], 
+                           marker='o', color='blue', linewidth=2, markersize=6)
+            
+            ax.set_xlabel(param.replace('_', ' ').title(), fontweight='bold')
+            
+            # Y-axis labels
+            if param_idx == 0:  # Only leftmost column
+                metric_label = METRIC_LABELS.get(metric, metric.replace("_", " ").title())
+                ax.set_ylabel(f'{metric_label}\nJaccard Index', fontweight='bold')
+            
+            # Title only on top row
+            if metric_idx == 0:
+                ax.set_title(f'Effect of {param.replace("_", " ").title()}', fontweight='bold')
+            
+            ax.grid(True, alpha=0.3)
+            
+            # Rotate labels if text
+            if data[param].dtype == 'object':
+                ax.tick_params(axis='x', rotation=45)
+    
+    plt.suptitle('Parameter Effects on Each Metric', fontsize=16, fontweight='bold')
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=DPI, bbox_inches='tight')
+    
+    return fig
+
+def create_performance_summary(data: pd.DataFrame, varying_params: List[str], available_metrics: List[str], stats_results: dict, save_path: Optional[str] = None):
+    """Create performance summary for each metric separately."""
+    n_metrics = len(available_metrics)
+    fig, axes = plt.subplots(2, n_metrics, figsize=(6 * n_metrics, 12))
+    if n_metrics == 1:
+        axes = axes.reshape(-1, 1)
+    
+    for i, metric in enumerate(available_metrics):
+        metric_label = METRIC_LABELS.get(metric, metric.replace("_", " ").title())
+        
+        # Top row: Performance distribution
+        ax1 = axes[0, i]
+        ax1.hist(data[metric].dropna(), bins=20, alpha=0.7, color='skyblue', edgecolor='black')
+        mean_perf = data[metric].mean()
+        ax1.axvline(mean_perf, color='red', linestyle='--', linewidth=2, 
+                   label=f'Mean: {mean_perf:.3f}')
+        ax1.set_xlabel('Jaccard Index', fontweight='bold')
+        ax1.set_ylabel('Frequency', fontweight='bold')
+        ax1.set_title(f'{metric_label} Distribution', fontweight='bold')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # Bottom row: Algorithm comparison
+        ax2 = axes[1, i]
+        if ALGORITHM_COL in data.columns:
+            algo_stats = data.groupby(ALGORITHM_COL)[metric].agg(['mean', 'std', 'count'])
+            bars = ax2.bar(range(len(algo_stats)), algo_stats['mean'],
+                          yerr=algo_stats['std'], capsize=5, alpha=0.7)
+            
+            # Color bars
+            for bar, alg in zip(bars, algo_stats.index):
+                bar.set_color(COLORS.get(alg.lower(), 'gray'))
+            
+            ax2.set_xlabel('Algorithm', fontweight='bold')
+            ax2.set_ylabel('Jaccard Index', fontweight='bold')
+            ax2.set_title(f'{metric_label} by Algorithm', fontweight='bold')
+            ax2.set_xticks(range(len(algo_stats)))
+            ax2.set_xticklabels(algo_stats.index, rotation=45)
+            ax2.grid(True, alpha=0.3)
+            
+            # Add significance stars
+            if metric in stats_results and 'algorithm_test' in stats_results[metric]:
+                p_val = stats_results[metric]['algorithm_test']['p_value']
+                sig = '***' if p_val < 0.001 else '**' if p_val < 0.01 else '*' if p_val < 0.05 else 'ns'
+                test_name = stats_results[metric]['algorithm_test']['test']
+                ax2.text(0.02, 0.98, f"{test_name}\np={p_val:.4f} {sig}", 
+                        transform=ax2.transAxes, va='top', ha='left', 
+                        bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+    
+    plt.suptitle('Performance Summary: Separate Metrics', fontsize=16, fontweight='bold')
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=DPI, bbox_inches='tight')
+    
+    return fig
+
+def get_best_configs(data: pd.DataFrame, n: int = 5) -> pd.DataFrame:
+    """Get top N configurations."""
+    return data.nlargest(n, 'avg_performance')[
+        PARAM_COLS + METRICS + ['avg_performance']
+    ]
+
+def generate_report(data: pd.DataFrame, varying_params: List[str], stats_results: dict, output_dir: str):
+    """Generate comprehensive report with statistics."""
+    report_path = os.path.join(output_dir, 'analysis_report.txt')
+    
+    with open(report_path, 'w') as f:
+        f.write("CM4AI Parameter Analysis Report\n")
+        f.write("=" * 50 + "\n\n")
+        
+        # Data summary
+        f.write(f"Dataset: {len(data)} configurations analyzed\n")
+        f.write(f"Metrics: {[col for col in METRICS if col in data.columns]}\n")
+        f.write(f"Varying parameters: {varying_params}\n\n")
+        
+        # Performance summary
+        f.write("Performance Summary:\n")
+        f.write(f"Mean: {data['avg_performance'].mean():.4f}\n")
+        f.write(f"Std:  {data['avg_performance'].std():.4f}\n")
+        f.write(f"Min:  {data['avg_performance'].min():.4f}\n")
+        f.write(f"Max:  {data['avg_performance'].max():.4f}\n\n")
+        
+        # Statistical results
+        f.write("Statistical Analysis:\n")
+        if 'algorithm_test' in stats_results:
+            test = stats_results['algorithm_test']
+            f.write(f"Algorithm comparison ({test['test']}): p={test['p_value']:.4f}\n")
+        
+        if 'correlations' in stats_results:
+            f.write("\nParameter Correlations (with Bonferroni correction):\n")
+            for corr in stats_results['correlations']:
+                sig = '*' if corr['corrected_p'] < 0.05 else ''
+                f.write(f"{corr['parameter']}: r={corr['correlation']:.3f}, p={corr['corrected_p']:.4f}{sig}\n")
+        
+        # Best configurations
+        f.write("\nTop 5 Configurations:\n")
+        best_configs = get_best_configs(data, 5)
+        for i, (idx, row) in enumerate(best_configs.iterrows()):
+            f.write(f"\n{i+1}. Performance: {row['avg_performance']:.4f}\n")
+            for param in PARAM_COLS:
+                if param in row:
+                    f.write(f"   {param}: {row[param]}\n")
+        
+        # Algorithm comparison
+        if ALGORITHM_COL in data.columns:
+            f.write("\nAlgorithm Performance:\n")
+            algo_stats = data.groupby(ALGORITHM_COL)['avg_performance'].agg(['mean', 'std', 'count'])
+            for alg, stats in algo_stats.iterrows():
+                f.write(f"{alg}: {stats['mean']:.4f} ± {stats['std']:.4f} (n={stats['count']})\n")
+    
+    print(f"Report saved to: {report_path}")
+    return stats_results
+
+def main():
+    """Main execution function."""
+    parser = argparse.ArgumentParser(description='CM4AI Parameter Analysis')
+    parser.add_argument('--input', '-i', required=True, help='Input CSV file')
+    parser.add_argument('--output', '-o', default='./plots/', help='Output directory')
+    
+    args = parser.parse_args()
+    
+    # Load data
+    print(f"Loading data from: {args.input}")
+    data, varying_params = load_data(args.input)
+    
+    # Create output directory
+    os.makedirs(args.output, exist_ok=True)
+    
+    # Generate all analyses
+    print("Generating visualizations...")
+    
+    create_algorithm_comparison(data, save_path=os.path.join(args.output, 'algorithm_comparison.png'))
+    create_parameter_effects(data, varying_params, save_path=os.path.join(args.output, 'parameter_effects.png'))
+    
+    # Advanced features
+    print("Running statistical analysis...")
+    stats_results = stats(data, varying_params)
+    
+    perf_plot_path = os.path.join(args.output, 'performance_summary.png')
+    create_performance_summary(data, varying_params, stats_results, save_path=perf_plot_path)
+    
+    generate_report(data, varying_params, stats_results, args.output)
+    
+    # Print statistical summary
+    if 'algorithm_test' in stats_results:
+        test = stats_results['algorithm_test']
+        print(f"\nAlgorithm comparison: {test['test']} p={test['p_value']:.4f}")
+    
+    if 'correlations' in stats_results:
+        print("\nSignificant correlations:")
+        for corr in stats_results['correlations']:
+            if corr['corrected_p'] < 0.05:
+                print(f"  {corr['parameter']}: r={corr['correlation']:.3f}")
+    
+    # Print best configuration
+    print("\nBest configuration:")
+    best = get_best_configs(data, 1)
+    print(best.to_string(index=False))
+    
+    print(f"\n Analysis complete! Results saved to: {args.output}")
+    print("Interactive plots saved as .html files")
+
+if __name__ == "__main__":
+    main()
